@@ -1,6 +1,10 @@
 // server.js
-const express = require('express');
+// Carga las variables de entorno primero
 const dotenv = require('dotenv');
+dotenv.config();
+
+// Luego importa los demás módulos
+const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet'); // <--- Añadido
 const rateLimit = require('express-rate-limit'); // <--- Añadido
@@ -9,13 +13,8 @@ const initializeDatabase = require('./config/initDb');
 
 
 console.log('--- Verificando Variables de Entorno ---');
-console.log('Valor de process.env.DATABASE_URL:', process.env.DATABASE_URL); // <-- ¿Qué imprime esto?
+console.log('Valor de process.env.DATABASE_URL:', process.env.DATABASE_URL);
 console.log('--- Fin Verificación ---');
-
-const express = require('express');
-
-// Carga las variables de entorno
-dotenv.config();
 
 // Importa las rutas
 const authRoutes = require('./routes/authRoutes');
