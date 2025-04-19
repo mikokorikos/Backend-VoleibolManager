@@ -7,6 +7,13 @@ const rateLimit = require('express-rate-limit'); // <--- Añadido
 const pool = require('./config/db');
 const initializeDatabase = require('./config/initDb');
 
+
+console.log('--- Verificando Variables de Entorno ---');
+console.log('Valor de process.env.DATABASE_URL:', process.env.DATABASE_URL); // <-- ¿Qué imprime esto?
+console.log('--- Fin Verificación ---');
+
+const express = require('express');
+
 // Carga las variables de entorno
 dotenv.config();
 
@@ -18,11 +25,7 @@ const torneoRoutes = require('./routes/torneoRoutes');
 const pagoRoutes = require('./routes/pagoRoutes');
 
 // server.js - PRINCIPIO DEL ARCHIVO
-console.log('--- Verificando Variables de Entorno ---');
-console.log('Valor de process.env.DATABASE_URL:', process.env.DATABASE_URL); // <-- ¿Qué imprime esto?
-console.log('--- Fin Verificación ---');
 
-const express = require('express');
 // ... resto del código
 
 // const equipoRoutes = require('./routes/equipoRoutes');
