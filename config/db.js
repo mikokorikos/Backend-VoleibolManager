@@ -1,48 +1,43 @@
-// config/db.js
+// config/db.js - MODIFICACIÓN TEMPORAL PARA DEPURAR
 const mysql = require('mysql2/promise');
-require('dotenv').config(); // Carga variables de .env si están en un archivo .env
+// Carga variables de .env si existen, pero las del entorno (Railway) tienen prioridad
+require('dotenv').config();
 
 // Obtiene la URL de la base de datos desde las variables de entorno
 const dbUrl = process.env.DATABASE_URL;
 
-// Verifica si la variable DATABASE_URL está definida
-if (!dbUrl) {
-  console.error('❌ Error Fatal: La variable de entorno DATABASE_URL no está definida.');
-  console.error('Asegúrate de configurar la variable DATABASE_URL en tu entorno de despliegue (Railway).');
-  // Lanza un error para detener la aplicación si la DB es esencial
-  throw new Error('DATABASE_URL no configurada. La aplicación no puede iniciar.');
-  // Alternativamente, podrías usar process.exit(1) para forzar la salida:
-  // process.exit(1);
+// Imprime el valor que recibe este módulo específico
+console.log(`[config/db.js] Valor de process.env.DATABASE_URL al cargar este módulo: ${dbUrl}`);
+
+let pool = null; // Inicializa el pool como null
+
+// Intenta crear el pool SOLO si la URL parece estar definida
+if (dbUrl) {
+  try {
+    console.log('[config/db.js] DATABASE_URL parece definida. Intentando crear pool...');
+    // Crea el pool de conexiones usando la URL
+    pool = mysql.createPool(dbUrl);
+
+    // Prueba la conexión de forma asíncrona para no bloquear la carga inicial
+    pool.getConnection()
+      .then(connection => {
+        console.log('✅ [config/db.js] Conexión de prueba al pool exitosa.');
+        connection.release(); // Libera la conexión de prueba
+      })
+      .catch(err => {
+        // Loguea el error de conexión pero NO detiene la aplicación aquí
+        console.error(`❌ [config/db.js] Error al obtener conexión de prueba del pool. ¿URL/Credenciales correctas? ¿DB accesible? Error: ${err.message}`);
+      });
+
+  } catch (error) {
+    // Captura errores SÍNCRONOS durante la creación del pool (menos común)
+    console.error('❌ [config/db.js] Error SÍNCRONO al intentar crear el pool:', error);
+    // No lanzamos el error para permitir que la app continúe cargando
+  }
+} else {
+  // Advierte si la URL no está definida, pero no detiene la aplicación
+  console.warn('⚠️ [config/db.js] DATABASE_URL no está definida al cargar este módulo. El pool de conexiones (BD) no estará disponible.');
 }
 
-console.log('🔌 Intentando conectar a la base de datos...'); // Mensaje para saber que se intenta conectar
-
-let pool;
-try {
-  // Crea el pool de conexiones usando la URL
-  pool = mysql.createPool(dbUrl);
-
-  // Prueba la conexión para asegurar que la URL es válida y la DB accesible
-  pool.getConnection()
-    .then(connection => {
-      console.log('✅ Conexión a la base de datos MySQL establecida correctamente.');
-      connection.release(); // Libera la conexión de prueba inmediatamente
-    })
-    .catch(err => {
-      // Este error es más específico, ocurre si la URL es inválida o la conexión falla
-      console.error(`❌ Error al establecer una conexión con la base de datos usando la URL proporcionada.`);
-      console.error('Detalles del error:', err.message); // Muestra el mensaje específico del error de conexión
-      // Podrías querer terminar el proceso aquí también si la conexión inicial falla
-      // process.exit(1);
-    });
-
-} catch (error) {
-    // Este catch manejaría errores si `mysql.createPool(dbUrl)` fallara inmediatamente
-    // (aunque es más común que falle dentro del .getConnection().catch)
-    console.error('❌ Error Crítico al intentar crear el pool de conexiones MySQL:', error);
-    throw error; // Relanza el error para detener la aplicación
-    // o process.exit(1);
-}
-
-// Exporta el pool para usarlo en otros archivos (controllers, etc.)
+// Exporta el pool (puede ser null si la URL no estaba definida o hubo un error síncrono)
 module.exports = pool;
