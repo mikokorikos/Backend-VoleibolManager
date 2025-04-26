@@ -1,20 +1,24 @@
-// server.js
-// Carga las variables de entorno primero
+// server.js - PRINCIPIO DEL ARCHIVO
+console.log('--- Verificando TODAS las Variables de Entorno (antes de dotenv) ---');
+// Imprime el objeto completo process.env al inicio del script
+// ¡CUIDADO! Esto puede imprimir información sensible en los logs.
+console.log(process.env);
+console.log('--- Fin Verificación Inicial de Variables de Entorno ---');
+
+
+// Carga las variables de entorno desde .env (si existe) después de la verificación inicial
 const dotenv = require('dotenv');
 dotenv.config();
 
 // Luego importa los demás módulos
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet'); // <--- Añadido
-const rateLimit = require('express-rate-limit'); // <--- Añadido
-const pool = require('./config/db');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// Importa la configuración de la DB DESPUÉS de dotenv y la verificación inicial
+const pool = require('./config/db'); // db.js también llama a dotenv.config(), pero no debería afectar
 const initializeDatabase = require('./config/initDb');
-
-
-console.log('--- Verificando Variables de Entorno ---');
-console.log('Valor de process.env.DATABASE_URL:', process.env.DATABASE_URL);
-console.log('--- Fin Verificación ---');
 
 // Importa las rutas
 const authRoutes = require('./routes/authRoutes');
@@ -22,11 +26,6 @@ const tutorRoutes = require('./routes/tutorRoutes');
 const jugadoraRoutes = require('./routes/jugadoraRoutes');
 const torneoRoutes = require('./routes/torneoRoutes');
 const pagoRoutes = require('./routes/pagoRoutes');
-
-// server.js - PRINCIPIO DEL ARCHIVO
-
-// ... resto del código
-
 // const equipoRoutes = require('./routes/equipoRoutes');
 // const partidoRoutes = require('./routes/partidoRoutes');
 // const estadisticaRoutes = require('./routes/estadisticaRoutes');
@@ -35,42 +34,39 @@ const pagoRoutes = require('./routes/pagoRoutes');
 const app = express();
 
 // --- Middlewares de Seguridad ---
+app.use(helmet());
 
-// Añade cabeceras de seguridad básicas
-app.use(helmet()); // <--- Añadido
-
-// Configuración de CORS (más restrictiva)
-const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://127.0.0.1:5500']; // <--- Cambia 'http://localhost:3000' por la URL de tu frontend Flutter o web si es diferente. Añade 'http://127.0.0.1:5500' si usas Live Server para index.html
+// Configuración de CORS
+const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://127.0.0.1:5500'];
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permite requests sin 'origin' (como apps móviles o Postman) O si el origen está en la lista
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Origen no permitido por CORS'));
+      // Proporciona el origen específico en el error para facilitar la depuración
+      callback(new Error(`Origen '${origin}' no permitido por CORS`));
     }
   },
-  optionsSuccessStatus: 200 // Algunos navegadores legacy (IE11) se ahogan con 204
+  optionsSuccessStatus: 200
 };
-app.use(cors(corsOptions)); // <--- Modificado
+app.use(cors(corsOptions));
 
-// Limitación de Tasa (Rate Limiting) general (ajusta según tus necesidades)
+// Limitación de Tasa (Rate Limiting)
 const generalLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minutos
-	max: 200, // Limita cada IP a 200 requests por ventana (15 minutos)
-	standardHeaders: true, // Devuelve info del rate limit en headers `RateLimit-*`
-	legacyHeaders: false, // Deshabilita headers `X-RateLimit-*`
-    message: 'Demasiadas solicitudes desde esta IP, por favor intente de nuevo después de 15 minutos', // <--- Mensaje personalizado
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Demasiadas solicitudes desde esta IP, por favor intente de nuevo después de 15 minutos',
 });
-app.use(generalLimiter); // Aplica a todas las rutas después de esta línea
+app.use(generalLimiter);
 
 
 // --- Middlewares Generales ---
-app.use(express.json()); // Para parsear JSON
-app.use(express.urlencoded({ extended: false })); // Para parsear form data
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(express.static('public'));
 
-// Sirve archivos estáticos desde 'public' (si aún lo necesitas para index.html)
-app.use(express.static('public')); // <--- Añadido si usas el index.html
 
 // --- Inicialización DB y Rutas ---
 initializeDatabase()
@@ -78,7 +74,7 @@ initializeDatabase()
     console.log("🟢 Inicialización de DB completada, montando rutas...");
 
     // Rutas de la API
-    app.get('/api/status', (req, res) => { // Ruta simple de estado
+    app.get('/api/status', (req, res) => {
       res.json({ status: 'API Voleibol Manager funcionando!' });
     });
 
@@ -96,19 +92,27 @@ initializeDatabase()
     app.use((err, req, res, next) => {
       console.error("-------------------- ERROR NO CONTROLADO --------------------");
       console.error(`[${new Date().toISOString()}] Ruta: ${req.method} ${req.originalUrl}`);
-      console.error("Error:", err); // Log completo del error
-      console.error("Stack:", err.stack); // Log del stack trace
+      // Log detallado solo en desarrollo
+      if (process.env.NODE_ENV !== 'production') {
+          console.error("Error Object:", err);
+          console.error("Error Stack:", err.stack);
+      } else {
+          // En producción, loguea al menos el mensaje del error
+           console.error("Error Message:", err.message);
+      }
       console.error("-----------------------------------------------------------");
 
-      // Evita filtrar detalles internos en producción
       const statusCode = err.statusCode || 500;
-      const message = process.env.NODE_ENV === 'production' ? '¡Algo salió mal en el servidor!' : err.message || 'Error interno del servidor';
+      // Mensaje genérico para errores 500 en producción
+      const message = (process.env.NODE_ENV === 'production' && statusCode === 500)
+                      ? '¡Algo salió mal en el servidor!'
+                      : err.message || 'Error interno del servidor';
 
       res.status(statusCode).json({
-           message: message,
-           // Opcional: añadir stack en desarrollo
-           stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-       });
+        message: message,
+        // Opcional: añadir stack en desarrollo
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      });
     });
 
     // Define el puerto
@@ -119,6 +123,10 @@ initializeDatabase()
 
   })
   .catch(err => {
-    console.error("❌ Falló la inicialización de la base de datos. El servidor no se iniciará.", err);
-    process.exit(1); // Termina el proceso si la DB falla
+    console.error("❌ Error durante la inicialización o arranque del servidor:", err);
+    // Evitar salida si el error ya fue manejado en db.js
+    if (err.message !== 'DATABASE_URL no configurada. La aplicación no puede iniciar.') {
+       console.error("Terminando proceso debido a error no recuperable.")
+       process.exit(1); // Termina el proceso si la inicialización/DB falla críticamente
+    }
   });
